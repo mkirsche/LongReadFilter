@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Scanner;
 
 public class ReadLengthSeparator {
 	ReadReader rr;
@@ -19,14 +21,69 @@ public class ReadLengthSeparator {
 	int lengthThreshold;
 	int n;
 	String fn;
-	ReadLengthSeparator(String fn, double prop) throws IOException
+	@SuppressWarnings("resource")
+	ReadLengthSeparator(String fn, double prop, Timer timer, String readSplitScript) throws IOException, InterruptedException
 	{
 		this.fn = fn;
 		n = 0;
-		System.err.println("Calculating length threshold");
-		lengthThreshold = getLengthThreshold(new ReadReader(fn), prop);
-		System.err.println("Building index with reads having length at least: " + lengthThreshold);
+		System.out.println(readSplitScript);
+		if(readSplitScript == null || !(new File(readSplitScript)).exists())
+		{
+			System.err.println("Calculating length threshold");
+			lengthThreshold = getLengthThreshold(new ReadReader(fn), prop);
+			System.err.println("Building index with reads having length at least: " + lengthThreshold);
+			System.err.println(timer.time());
+			rr = new ReadReader(fn);
+			fillDataFromReadReader();
+		}
+		else
+		{
+			try 
+			{
+				String command = readSplitScript + " " + fn + " " + prop;
+				System.err.println("Running script to split reads:" + command);
+				// TODO get output from command
+				Runtime rt = Runtime.getRuntime();
+				Process pr = rt.exec(command);
+				Scanner prReader = new Scanner(pr.getInputStream()); 
+				HashMap<String, String> prOutput = new HashMap<>();
+				while (prReader.hasNext()) 
+				{
+					String line = prReader.nextLine();
+					System.out.println(line);
+					String[] tokens = line.split(" ");
+					if(tokens.length != 2 || !tokens[0].endsWith(":")) continue;
+					String key = tokens[0].substring(0, tokens[0].length()-1);
+					String val = tokens[1];
+					prOutput.put(key, val);
+				}
+				int retVal = pr.waitFor();
+				if(retVal != 0)
+				{
+					System.err.println("Read splitting failed");
+				}
+				
+				lengthThreshold = Integer.parseInt(prOutput.get("LengthCutoff"));
+				
+				System.err.println("Done splitting reads " + timer.time());
+				rr = new ReadReader(fn + ".long");
+				fillDataFromReadReader();
+				n = Integer.parseInt(prOutput.get("NumReads"));
+			} 
+			catch(Exception e) 
+			{
+				System.err.println("Calculating length threshold");
+				lengthThreshold = getLengthThreshold(new ReadReader(fn), prop);
+				System.err.println("Building index with reads having length at least: " + lengthThreshold);
+				System.err.println(timer.time());
+				rr = new ReadReader(fn);
+				fillDataFromReadReader();
+			};
+		}
 		rr = new ReadReader(fn);
+	}
+	void fillDataFromReadReader()
+	{
 		ArrayList<Read> res = new ArrayList<>();
 		while(rr.hasNext())
 		{
@@ -43,9 +100,7 @@ public class ReadLengthSeparator {
 		Read[] toArray = new Read[res.size()];
 		for(int i = 0; i<res.size(); i++) toArray[i] = res.get(i);
 		data = toArray;
-		
 		n = rr.readCount;
-		rr = new ReadReader(fn);
 	}
 	Read nextShortRead()
 	{

@@ -30,9 +30,14 @@ public class ReadIndex {
 		for(int i = 0; i<(1<<logNumMaps); i++) kmerMap[i] = new HashMap<>();
 		badKmers = new HashSet<>();
 		long totalReadLength = 0;
+		System.err.println("Building index with " + n + " reads");
 		for(int i = 0; i<n; i++)
 		{
 			add(i, re.data[i]);
+			if(clp.verbose && i > 0 && i%1000 == 0)
+			{
+				System.err.println("Added " + i + " reads");
+			}
 			totalReadLength += re.data[i].s.length();
 			re.data[i] = null;
 		}
@@ -41,6 +46,11 @@ public class ReadIndex {
 		for(HashMap<Integer, LongList> hm : kmerMap) numKmers += hm.size();
 		System.err.println("Number of kmers: " + numKmers);
 		System.err.println("Bad kmers: " + badKmers.size());
+	}
+	
+	void init()
+	{
+		
 	}
 	boolean contains(Read r)
 	{
