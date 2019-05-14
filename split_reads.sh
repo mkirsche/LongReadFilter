@@ -37,6 +37,7 @@ length_cutoff=`awk -v kr="$keptreads" 'BEGIN {s = 0; last = 0;} \
 echo 'LengthCutoff: '$length_cutoff
 
 srf=$readfile'.short'
+srf=''
 lrf=$readfile'.long'
 
 echo 'LongReadFile: '$lrf
@@ -52,7 +53,7 @@ awk -v lc="$length_cutoff" -v srf="$srf" -v lrf="$lrf" -v ft="$filetype" 'BEGIN 
                 if (length(seq) >= lc) { \
                     print header, seq, qheader, qseq > lrf; \
                 } \
-                else { \
+                else if(length(srf) > 0) { \
                    print header, seq, qheader, qseq > srf; \
                 } \
             } \
@@ -60,7 +61,7 @@ awk -v lc="$length_cutoff" -v srf="$srf" -v lrf="$lrf" -v ft="$filetype" 'BEGIN 
                if (length(seq) >= lc) { \
                     print header, seq > lrf; \
                 } \
-                else { \
+                else if(length(srf) > 0) { \
                    print header, seq > srf; \
                 } \
             } \
