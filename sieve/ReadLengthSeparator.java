@@ -41,7 +41,7 @@ public class ReadLengthSeparator {
 			try 
 			{
 				String command = readSplitScript + " " + fn + " " + prop;
-				System.err.println("Running script to split reads:" + command);
+				System.err.println("Running script to split reads: " + command);
 				// TODO get output from command
 				Runtime rt = Runtime.getRuntime();
 				Process pr = rt.exec(command);

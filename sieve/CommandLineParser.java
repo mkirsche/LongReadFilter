@@ -2,19 +2,24 @@ package sieve;
 
 public class CommandLineParser
 {
-	//String fn = "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
-	String fn = "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedreads.fa";
+	String fn = "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
+	//String fn = "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedreads.fa";
 	String ofn = "/home/mkirsche/github/ContainedReadRemoval/sim/sievedreads.out";
-	double indexSize = 0.01; // What proportion of the reads should be in the index
+	double indexSize = 0.02; // What proportion of the reads should be in the index
 	String readSplitScript = "/home/mkirsche/github/LongReadFilter/split_reads.sh";
+	String uncontainedReadFile = "uncontainedreadnames.txt";
+	//String logfile = "log.txt";
+	String logfile = null;
 	int k = 15;
-	int w = 21;
-	double p = 0.005;
-	int el = 500;
+	int w = 9;
+	double p = 0.01;
+	int el = (1+w) * 50;
 	int nt = 4;
 	boolean verbose = false;
+	int minLength = 10000;
 	CommandLineParser(String[] args)
 	{
+		boolean setEl = false;
 		for(String s : args)
 		{
 			int idx = s.indexOf('=');
@@ -58,7 +63,12 @@ public class CommandLineParser
 			}
 			else if(argName.equals("el"))
 			{
+				setEl = true;
 				el = Integer.parseInt(val);
+			}
+			else if(argName.equals("lf"))
+			{
+				logfile = val;
 			}
 			else if(argName.equals("p"))
 			{
@@ -68,6 +78,18 @@ public class CommandLineParser
 			{
 				readSplitScript = val;
 			}
+			else if(argName.equals("urf"))
+			{
+				uncontainedReadFile = val;
+			}
+			else if(argName.equals("ml"))
+			{
+				minLength = Integer.parseInt(val);
+			}
+		}
+		if(!setEl)
+		{
+			el = (1+w) * 50;
 		}
 	}
 }

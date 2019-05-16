@@ -10,6 +10,7 @@ public class ReadIndex {
 	int[] countContaining;
 	HashMap<Integer, LongList>[] kmerMap;
 	HashSet<Long> badKmers;
+	ArrayList<String> longReadNames;
 	int logNumMaps = 16;
 	int posStrandBits = 23;
 	boolean minimizers;
@@ -29,6 +30,7 @@ public class ReadIndex {
 		kmerMap = new HashMap[1<<logNumMaps];
 		for(int i = 0; i<(1<<logNumMaps); i++) kmerMap[i] = new HashMap<>();
 		badKmers = new HashSet<>();
+		longReadNames = new ArrayList<>();
 		long totalReadLength = 0;
 		System.err.println("Building index with " + n + " reads");
 		for(int i = 0; i<n; i++)
@@ -52,12 +54,13 @@ public class ReadIndex {
 	{
 		
 	}
-	boolean contains(Read r)
+	boolean contains(Read r, Logger logger)
 	{
+		Logger.LogElement le = new Logger.LogElement();
 		double threshold = clp.p;
 		int endLength = clp.el;
 		int readLength = r.s.length();
-		if(readLength < 5000)
+		if(readLength < clp.minLength)
 		{
 			return true;
 		}
@@ -67,6 +70,7 @@ public class ReadIndex {
 		if(!minimizers)
 		{
 			long[][] kmers = KmerFinder.kmerize(r.s, k);
+			readLength = kmers[0].length + kmers[1].length;
 			
 			// Loop through both strands since only forward strand in index
 			for(int strand = 0; strand<2; strand++)
@@ -93,12 +97,13 @@ public class ReadIndex {
 		}
 		else
 		{
-			readLength = (int)(readLength * 2.0 / (w+1));
+			//readLength = (int)(readLength * 2.0 / (w+1));
 			long[] miniKmers = KmerFinder.minimizers(r.s, k, w, posStrandBits);
+			readLength = miniKmers.length;
 			for(long miniKmer : miniKmers)
 			{
 				int strand = (int)(miniKmer&1);
-				int i = (int) (miniKmer & ((1L << (posStrandBits)) - 1));
+				int i = ((int) (miniKmer & ((1L << (posStrandBits)) - 1))) >> 1;
 				long kmer = miniKmer >> posStrandBits;
 				if(badKmers.contains(kmer)) continue;
 				LongList currentHits = kmerMap[(int)(kmer&((1<<logNumMaps)-1))].get((int)(kmer>>logNumMaps));
@@ -118,6 +123,14 @@ public class ReadIndex {
 			}
 		}
 		
+		le.numCandidates = hits.keySet().size();
+		le.readName = r.n;
+		le.readLength = r.s.length();
+		le.numMinimizers = readLength;
+		le.longestChain = 0;
+		le.contained = false;
+		le.chain = new int[] {};
+		
 		for(int readKey : hits.keySet())
 		{
 			ArrayList<Hit> sharedKmers = hits.get(readKey);
@@ -128,14 +141,25 @@ public class ReadIndex {
 			int readIndex = readKey / 2;
 			int theirStrand = readKey % 2;
 			
+			Collections.sort(sharedKmers);
+			
 			if(theirStrand != 0)
 			{
 				Collections.reverse(sharedKmers);
 			}
 			
-			int[] matchChain = lis(readLength, sharedKmers, theirStrand == 0);
+			int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0);
 			
-			boolean chainContaining = chainContaining(sharedKmers, matchChain, readLength, threshold, endLength);
+			if(!le.contained && matchChain.length > le.longestChain)
+			{
+				le.longestChain = matchChain.length;
+				le.chain = new int[matchChain.length];
+				for(int i = 0; i<le.chain.length; i++)
+				{
+					le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
+				}
+			}
+			boolean chainContaining = chainContaining(sharedKmers, matchChain, readLength, r.s.length(), threshold, endLength);
 			if(chainContaining)
 			{
 				countContaining[readIndex]++;
@@ -143,16 +167,37 @@ public class ReadIndex {
 				{
 					System.err.println("Read " + r.i + " contained by long read " + readIndex + " on strand " + theirStrand);
 				}
-				return true;
+				if(logger == null)
+				{
+					return true;
+				}
+				else
+				{
+					le.contained = true;
+					if(matchChain.length > le.longestChain)
+					{
+						le.longestChain = matchChain.length;
+						le.chain = new int[matchChain.length];
+						for(int i = 0; i<le.chain.length; i++)
+						{
+							le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
+						}
+					}
+				}
 			}
+		}
+		if(logger != null)
+		{
+			logger.data.add(le);
+			return le.contained;
 		}
 		return false;
 	}
-	boolean chainContaining(ArrayList<Hit> sharedKmers, int[] matchChain, int readLength, double threshold, int endLength)
+	boolean chainContaining(ArrayList<Hit> sharedKmers, int[] matchChain, int numMinimizers, int readLength, double threshold, int endLength)
 	{
 		int countLeftEnd = 0, countRightEnd = 0;
 		int totalMatches = matchChain.length;
-		if(totalMatches < threshold * readLength)
+		if(totalMatches < threshold * numMinimizers)
 		{
 			return false;
 		}
@@ -166,7 +211,7 @@ public class ReadIndex {
 		return true;
 	}
 	// Gets the sequence of indices in the longest increasing subsequence
-	// Kmers near the end count as 5 matches
+	// Kmers near the end count as 50 matches
 	int[] lis(int readLength, ArrayList<Hit> sharedKmers, boolean increasing)
 	{
 		int n = sharedKmers.size();
@@ -179,17 +224,18 @@ public class ReadIndex {
 			int currentVal = 1;
 			if(cur.myIndex < clp.el || cur.myIndex + clp.el + k > readLength)
 			{
-				currentVal = 5;
+				currentVal = 50;
 			}
 			maxVal[i] = currentVal;
 			backPointer[i] = -1;
 			for(int j = i-1; j>=0; j--)
 			{
 				Hit last = sharedKmers.get(j);
-				boolean validTransition = (increasing && cur.rp.p > last.rp.p) || (!increasing && cur.rp.p < last.rp.p);
+				boolean validTransition = ((increasing && cur.rp.p > last.rp.p) || (!increasing && cur.rp.p < last.rp.p)) && (cur.myIndex != last.myIndex);
 				int myJump = Math.abs(cur.myIndex - last.myIndex);
 				int theirJump = Math.abs(cur.rp.p - last.rp.p);
-				validTransition &= theirJump >= .9 * myJump && theirJump <= 1.1 * myJump;
+				validTransition &= theirJump >= .8 * myJump && theirJump <= 1.2 * myJump;
+				validTransition &= myJump < 5 * clp.el;
 				if(validTransition && maxVal[j] + currentVal > maxVal[i])
 				{
 					backPointer[i] = j;
@@ -216,6 +262,7 @@ public class ReadIndex {
 	}
 	void add(int index, Read cur)
 	{
+		longReadNames.add(cur.n);
 		if(!minimizers)
 		{
 			long[][] kmers = KmerFinder.kmerize(cur.s, k);
@@ -231,7 +278,7 @@ public class ReadIndex {
 			for(long miniKmer : miniKmers)
 			{
 				int strand = (int)(miniKmer&1);
-				int i = (int) (miniKmer & ((1L << (posStrandBits)) - 1));
+				int i = ((int) (miniKmer & ((1L << (posStrandBits)) - 1))) >> 1;
 				long kmer = miniKmer >> posStrandBits;
 				ReadPosition toAdd = new ReadPosition(index, i, strand);
 				addKeyValue(kmer, toAdd);
@@ -255,7 +302,7 @@ public class ReadIndex {
 		}
 		addingTo.get(key).add(value.encode());
 	}
-	class Hit
+	class Hit implements Comparable<Hit>
 	{
 		ReadPosition rp;
 		int myIndex;
@@ -263,6 +310,10 @@ public class ReadIndex {
 		{
 			rp = readPos;
 			myIndex = index;
+		}
+		@Override
+		public int compareTo(Hit o) {
+			return myIndex - o.myIndex;
 		}
 	}
 }

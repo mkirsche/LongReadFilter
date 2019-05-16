@@ -17,6 +17,10 @@ public static void main(String[] args) throws IOException, InterruptedException
 	
 	re.printUncontainedReads(crp.contained, clp.ofn);
 	System.err.println(Arrays.toString(index.countContaining));
+	int sum = 0;
+	for(int cc : index.countContaining) sum += cc;
+	System.err.println("Number removed from alignment chains: " + sum);
+	if(crp.logger != null) crp.logger.print();
 	System.err.println(timer.time());
 }
 }

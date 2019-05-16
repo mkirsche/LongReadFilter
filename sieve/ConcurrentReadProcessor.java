@@ -1,11 +1,15 @@
 package sieve;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConcurrentReadProcessor {
 	
 	ConcurrentLinkedQueue<Read> toProcess;
+	ConcurrentLinkedQueue<String> toWriteName;
 	ReadLengthSeparator re;
 	ReadIndex index;
 	CommandLineParser clp;
@@ -14,15 +18,20 @@ public class ConcurrentReadProcessor {
 	Timer timer;
 	
 	MyThread[] threads;
+	WriterThread wt;
 	boolean[] contained;
 	
-	ConcurrentReadProcessor(ReadLengthSeparator re, ReadIndex index, CommandLineParser clp, int numThreads, Timer timer) throws InterruptedException
+	Logger logger;
+	
+	ConcurrentReadProcessor(ReadLengthSeparator re, ReadIndex index, CommandLineParser clp, int numThreads, Timer timer) throws InterruptedException, FileNotFoundException
 	{
 		this.timer = timer;
 		this.re = re;
 		this.index = index;
 		this.clp = clp;
+		if(clp.logfile != null && clp.logfile.length() > 0) logger = new Logger(clp.logfile);
 		toProcess = new ConcurrentLinkedQueue<Read>();
+		toWriteName = new ConcurrentLinkedQueue<String>();
 		threads = new MyThread[numThreads];
 		readsProcessed = new AtomicInteger(0);
 		countContained = new AtomicInteger(0);
@@ -32,6 +41,8 @@ public class ConcurrentReadProcessor {
 			threads[i] = new MyThread();
 			threads[i].start();
 		}
+		wt = new WriterThread(clp.uncontainedReadFile);
+		wt.start();
 		System.err.println("All threads launched " + timer.time());
 	}
 	
@@ -50,6 +61,10 @@ public class ConcurrentReadProcessor {
 			}
 			toProcess.add(cur);
 		}
+		for(String s : index.longReadNames)
+		{
+			toWriteName.add(s);
+		}
 		while(true)
 		{
 			if(readsProcessed.get() == re.n - index.n)
@@ -63,6 +78,12 @@ public class ConcurrentReadProcessor {
 			Thread.sleep(1000);
 		}
 		for(int i = 0; i<threads.length; i++) threads[i].join();
+		while(!toWriteName.isEmpty())
+		{
+			Thread.sleep(1000);
+		}
+		wt.done = true;
+		wt.join();
 		System.err.println("All threads finished - outputting uncontained reads");
 	}
 
@@ -83,13 +104,17 @@ public class ConcurrentReadProcessor {
 					 cur = toProcess.poll();
 					 if(cur != null)
 					 {
-						 boolean c = index.contains(cur);
+						 boolean c = index.contains(cur, logger);
 						 int cc = countContained.get();
 						 if(c)
 						 {
 							 countContained.incrementAndGet();
 							 cc++;
 							 contained[cur.i] = true;
+						 }
+						 else
+						 {
+							 toWriteName.add(cur.n);
 						 }
 						 int rp = readsProcessed.incrementAndGet();
 						 if(rp%5000 == 0)
@@ -104,6 +129,43 @@ public class ConcurrentReadProcessor {
 				 System.err.println("Error: " + e.getMessage());
 				 e.printStackTrace();
 			 }
+		}
+	}
+	
+	class WriterThread extends Thread
+	{
+		boolean done;
+		PrintWriter out;
+		public WriterThread(String fn) throws FileNotFoundException
+		{
+			out = new PrintWriter(new File(fn));
+			done = false;
+		}
+		public void run() 
+		{
+			try 
+			{
+				String cur = null;
+				while(!done)
+				{
+					cur = toWriteName.poll();
+					if(cur != null)
+					{
+						String name = cur.split(" ")[0];
+						out.println(name);
+					}
+					else
+					{
+						Thread.sleep(1000);
+					}
+				}
+				out.close();
+			}
+			catch(Exception e) 
+			{
+				System.err.println("Error: " + e.getMessage());
+				e.printStackTrace();
+			}
 		}
 	}
 }
