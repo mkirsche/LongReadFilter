@@ -21,6 +21,7 @@ public class ReadLengthSeparator {
 	int lengthThreshold;
 	int n;
 	String fn;
+	Read[] sample;
 	@SuppressWarnings("resource")
 	ReadLengthSeparator(String fn, double prop, Timer timer, String readSplitScript) throws IOException, InterruptedException
 	{
@@ -40,7 +41,7 @@ public class ReadLengthSeparator {
 		{
 			try 
 			{
-				String command = readSplitScript + " " + fn + " " + prop;
+				String command = readSplitScript + " " + fn + " " + prop + " " + 5000;
 				System.err.println("Running script to split reads: " + command);
 				// TODO get output from command
 				Runtime rt = Runtime.getRuntime();
@@ -69,6 +70,12 @@ public class ReadLengthSeparator {
 				rr = new ReadReader(fn + ".long");
 				fillDataFromReadReader();
 				n = Integer.parseInt(prOutput.get("NumReads"));
+				
+				if(prOutput.containsKey("SampleFile"))
+				{
+					ReadReader sampleReader = new ReadReader(prOutput.get("SampleFile"));
+					sample = sampleReader.getAllReads();
+				}
 			} 
 			catch(Exception e) 
 			{

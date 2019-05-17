@@ -12,6 +12,16 @@ public static void main(String[] args) throws IOException, InterruptedException
 	System.err.println(timer.time());
 	ReadIndex index = new ReadIndex(re, clp);
 	
+	if(clp.learn && re.sample != null)
+	{
+		System.err.println("Using sample to learn threshold");
+		ParameterLearner pl = new ParameterLearner(index, re.sample, clp.propUncontained);
+		clp.p = pl.sharedCutoff;
+		System.err.println("Updating proportion cutoff to " + clp.p);
+		clp.setEl();
+		System.err.println("Updating end length to " + clp.el);
+	}
+	
 	ConcurrentReadProcessor crp = new ConcurrentReadProcessor(re, index, clp, clp.nt, timer);
 	crp.run();
 	

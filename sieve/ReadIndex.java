@@ -50,10 +50,42 @@ public class ReadIndex {
 		System.err.println("Bad kmers: " + badKmers.size());
 	}
 	
-	void init()
+	double[][] getParamInfo(Read[] rs)
 	{
-		
+		int numReads = rs.length;
+		double[][] res = new double[numReads][];
+		for(int i = 0; i<numReads; i++)
+		{
+			Read r = rs[i];
+			long[] kmers = minimizers ? KmerFinder.minimizers(r.s, k, w, posStrandBits) : KmerFinder.kmers(r.s, k);
+			HashMap<Integer, ArrayList<Hit>> hits = getHits(r, kmers);
+			
+			int longestChain = 0;
+			
+			for(int readKey : hits.keySet())
+			{
+				ArrayList<Hit> sharedKmers = hits.get(readKey);
+				
+				Collections.sort(sharedKmers);
+				
+				if(readKey % 2 != 0)
+				{
+					Collections.reverse(sharedKmers);
+				}
+				
+				int[] matchChain = lis(r.s.length(), sharedKmers, readKey % 2 == 0, 0);
+
+				if(matchChain.length > longestChain)
+				{
+					longestChain = matchChain.length;
+				}
+			}
+			res[i] = new double[] {longestChain * 1.0 / kmers.length};
+		}
+		return res;
 	}
+	
+	
 	boolean contains(Read r, Logger logger)
 	{
 		Logger.LogElement le = new Logger.LogElement();
@@ -65,19 +97,93 @@ public class ReadIndex {
 			return true;
 		}
 		
+		long[] kmers = minimizers ? KmerFinder.minimizers(r.s, k, w, posStrandBits) : KmerFinder.kmers(r.s, k);
+		int numMinimizers = kmers.length;
+		
+		HashMap<Integer, ArrayList<Hit>> hits = getHits(r, kmers);
+		
+		le.numCandidates = hits.keySet().size();
+		le.readName = r.n;
+		le.readLength = r.s.length();
+		le.numMinimizers = kmers.length;
+		le.longestChain = 0;
+		le.contained = false;
+		le.chain = new int[] {};
+		
+		for(int readKey : hits.keySet())
+		{
+			ArrayList<Hit> sharedKmers = hits.get(readKey);
+			if(sharedKmers.size() < threshold * numMinimizers)
+			{
+				continue;
+			}
+			int readIndex = readKey / 2;
+			int theirStrand = readKey % 2;
+			
+			Collections.sort(sharedKmers);
+			
+			if(theirStrand != 0)
+			{
+				Collections.reverse(sharedKmers);
+			}
+			
+			int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0, threshold);
+			
+			if(!le.contained && matchChain.length > le.longestChain)
+			{
+				le.longestChain = matchChain.length;
+				le.chain = new int[matchChain.length];
+				for(int i = 0; i<le.chain.length; i++)
+				{
+					le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
+				}
+			}
+			boolean chainContaining = chainContaining(sharedKmers, matchChain, numMinimizers, r.s.length(), threshold, endLength);
+			if(chainContaining)
+			{
+				countContaining[readIndex]++;
+				if(verbose)
+				{
+					System.err.println("Read " + r.i + " contained by long read " + readIndex + " on strand " + theirStrand);
+				}
+				if(logger == null)
+				{
+					return true;
+				}
+				else
+				{
+					if(matchChain.length > le.longestChain || !le.contained)
+					{
+						le.longestChain = matchChain.length;
+						le.chain = new int[matchChain.length];
+						for(int i = 0; i<le.chain.length; i++)
+						{
+							le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
+						}
+						le.contained = true;
+					}
+				}
+			}
+		}
+		if(logger != null)
+		{
+			logger.data.add(le);
+			return le.contained;
+		}
+		return false;
+	}
+	HashMap<Integer, ArrayList<Hit>> getHits(Read r, long[] kmers)
+	{
 		HashMap<Integer, ArrayList<Hit>> hits = new HashMap<>();
 		
 		if(!minimizers)
 		{
-			long[][] kmers = KmerFinder.kmerize(r.s, k);
-			readLength = kmers[0].length + kmers[1].length;
-			
 			// Loop through both strands since only forward strand in index
 			for(int strand = 0; strand<2; strand++)
 			{
-				for(int i = 0; i<kmers[strand].length; i++)
+				for(int i = strand; i<kmers.length; i+=2)
 				{
-					long kmer = kmers[strand][i];
+					long kmer = kmers[i];
 					if(badKmers.contains(kmer)) continue;
 					LongList currentHits = kmerMap[(int)(kmer&((1<<logNumMaps)-1))].get((int)(kmer>>logNumMaps));
 					if(currentHits == null) continue;
@@ -97,10 +203,7 @@ public class ReadIndex {
 		}
 		else
 		{
-			//readLength = (int)(readLength * 2.0 / (w+1));
-			long[] miniKmers = KmerFinder.minimizers(r.s, k, w, posStrandBits);
-			readLength = miniKmers.length;
-			for(long miniKmer : miniKmers)
+			for(long miniKmer : kmers)
 			{
 				int strand = (int)(miniKmer&1);
 				int i = ((int) (miniKmer & ((1L << (posStrandBits)) - 1))) >> 1;
@@ -122,76 +225,7 @@ public class ReadIndex {
 				}
 			}
 		}
-		
-		le.numCandidates = hits.keySet().size();
-		le.readName = r.n;
-		le.readLength = r.s.length();
-		le.numMinimizers = readLength;
-		le.longestChain = 0;
-		le.contained = false;
-		le.chain = new int[] {};
-		
-		for(int readKey : hits.keySet())
-		{
-			ArrayList<Hit> sharedKmers = hits.get(readKey);
-			if(sharedKmers.size() < threshold * readLength)
-			{
-				continue;
-			}
-			int readIndex = readKey / 2;
-			int theirStrand = readKey % 2;
-			
-			Collections.sort(sharedKmers);
-			
-			if(theirStrand != 0)
-			{
-				Collections.reverse(sharedKmers);
-			}
-			
-			int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0);
-			
-			if(!le.contained && matchChain.length > le.longestChain)
-			{
-				le.longestChain = matchChain.length;
-				le.chain = new int[matchChain.length];
-				for(int i = 0; i<le.chain.length; i++)
-				{
-					le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
-				}
-			}
-			boolean chainContaining = chainContaining(sharedKmers, matchChain, readLength, r.s.length(), threshold, endLength);
-			if(chainContaining)
-			{
-				countContaining[readIndex]++;
-				if(verbose)
-				{
-					System.err.println("Read " + r.i + " contained by long read " + readIndex + " on strand " + theirStrand);
-				}
-				if(logger == null)
-				{
-					return true;
-				}
-				else
-				{
-					le.contained = true;
-					if(matchChain.length > le.longestChain)
-					{
-						le.longestChain = matchChain.length;
-						le.chain = new int[matchChain.length];
-						for(int i = 0; i<le.chain.length; i++)
-						{
-							le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
-						}
-					}
-				}
-			}
-		}
-		if(logger != null)
-		{
-			logger.data.add(le);
-			return le.contained;
-		}
-		return false;
+		return hits;
 	}
 	boolean chainContaining(ArrayList<Hit> sharedKmers, int[] matchChain, int numMinimizers, int readLength, double threshold, int endLength)
 	{
@@ -212,7 +246,7 @@ public class ReadIndex {
 	}
 	// Gets the sequence of indices in the longest increasing subsequence
 	// Kmers near the end count as 50 matches
-	int[] lis(int readLength, ArrayList<Hit> sharedKmers, boolean increasing)
+	int[] lis(int readLength, ArrayList<Hit> sharedKmers, boolean increasing, double threshold)
 	{
 		int n = sharedKmers.size();
 		int[] maxVal = new int[n];
@@ -235,7 +269,7 @@ public class ReadIndex {
 				int myJump = Math.abs(cur.myIndex - last.myIndex);
 				int theirJump = Math.abs(cur.rp.p - last.rp.p);
 				validTransition &= theirJump >= .8 * myJump && theirJump <= 1.2 * myJump;
-				validTransition &= myJump < 5 * clp.el;
+				validTransition &= myJump * threshold < 30.0;
 				if(validTransition && maxVal[j] + currentVal > maxVal[i])
 				{
 					backPointer[i] = j;

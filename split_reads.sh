@@ -1,5 +1,5 @@
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <readfile> <proportion_reads_long>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <readfile> <proportion_reads_long> <sample_size>"
     exit 1
 fi
 
@@ -39,11 +39,15 @@ echo 'LengthCutoff: '$length_cutoff
 srf=$readfile'.short'
 srf=''
 lrf=$readfile'.long'
+samplefile=$readfile'.sample'
+echo 'SampleFile: '$samplefile
+
+shortreadcount=`expr $numreads - $keptreads`
 
 echo 'LongReadFile: '$lrf
 echo 'ShortReadFile: '$srf
 
-awk -v lc="$length_cutoff" -v srf="$srf" -v lrf="$lrf" -v ft="$filetype" 'BEGIN {FS = "\t" ; OFS = "\n"} 
+awk -v lc="$length_cutoff" -v srf="$srf" -v lrf="$lrf" -v sf="$samplefile" -v ft="$filetype" -v src="$shortreadcount" -v wantkeep="$3" 'BEGIN {FS = "\t" ; OFS = "\n" ; sampleSize = 0 } 
         { \
             header = $0 ; \
             getline seq ; \
@@ -53,16 +57,33 @@ awk -v lc="$length_cutoff" -v srf="$srf" -v lrf="$lrf" -v ft="$filetype" 'BEGIN 
                 if (length(seq) >= lc) { \
                     print header, seq, qheader, qseq > lrf; \
                 } \
-                else if(length(srf) > 0) { \
-                   print header, seq, qheader, qseq > srf; \
+                else { \
+                    if(length(sf) > 0) { \
+                        if(int(rand()*src+0.5) < wantkeep) { \
+                            sampleSize = sampleSize + 1; \
+                            print header, seq, qheader, qseq > sf; \
+                        } \
+                    } \
+                    if(length(srf) > 0) { \
+                        print header, seq, qheader, qseq > srf; \
+                    } \
+                    
                 } \
             } \
             else { \
                if (length(seq) >= lc) { \
                     print header, seq > lrf; \
                 } \
-                else if(length(srf) > 0) { \
-                   print header, seq > srf; \
+                else { \
+                    if(length(sf) > 0) { \
+                        if(int(rand()*src+0.5) < wantkeep) { \
+                            sampleSize = sampleSize + 1; \
+                            print header, seq, qheader, qseq > sf; \
+                        } \
+                    } \
+                    if(length(srf) > 0) { \
+                        print header, seq > srf; \
+                    } \
                 } \
             } \
         }' < $readfile

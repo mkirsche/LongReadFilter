@@ -29,7 +29,10 @@ public class ConcurrentReadProcessor {
 		this.re = re;
 		this.index = index;
 		this.clp = clp;
-		if(clp.logfile != null && clp.logfile.length() > 0) logger = new Logger(clp.logfile);
+		if(clp.logfile != null && clp.logfile.length() > 0)
+		{
+			logger = new Logger(clp.logfile);
+		}
 		toProcess = new ConcurrentLinkedQueue<Read>();
 		toWriteName = new ConcurrentLinkedQueue<String>();
 		threads = new MyThread[numThreads];

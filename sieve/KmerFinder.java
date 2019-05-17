@@ -26,6 +26,18 @@ public class KmerFinder {
 		}
 		return res;
 	}
+	static long[] kmers(String s, int k)
+	{
+		long[][] all = kmerize(s, k);
+		int n = all[0].length;
+		long[] res = new long[2*n];
+		for(int i = 0; i<n; i++)
+		{
+			res[2*i] = all[0][i];
+			res[2*i+1] = all[1][i];
+		}
+		return res;
+	}
 	static long hash64(long key, int k)
 	{
 		long mask = (1L << (2*k)) - 1;

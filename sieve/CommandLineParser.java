@@ -2,21 +2,29 @@ package sieve;
 
 public class CommandLineParser
 {
-	String fn = "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
-	//String fn = "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedreads.fa";
+	static boolean localDebug = true;
+	String fn = localDebug ? "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedreads.fa"
+			: "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
 	String ofn = "/home/mkirsche/github/ContainedReadRemoval/sim/sievedreads.out";
 	double indexSize = 0.02; // What proportion of the reads should be in the index
 	String readSplitScript = "/home/mkirsche/github/LongReadFilter/split_reads.sh";
 	String uncontainedReadFile = "uncontainedreadnames.txt";
-	//String logfile = "log.txt";
-	String logfile = null;
+	String logfile = localDebug ? "log.txt" : null;
 	int k = 15;
-	int w = 9;
+	int w = 11;
+	
+	// These two are overridden if learn is set to true, which it is by default
 	double p = 0.01;
-	int el = (1+w) * 50;
+	int el = 500;
 	int nt = 4;
+	
 	boolean verbose = false;
-	int minLength = 10000;
+	boolean learn = true;
+	int minLength = 12000;
+	
+	// Estimated proportion of short reads we want to label as uncontained - used for learning threshold
+	double propUncontained = .08;
+	
 	CommandLineParser(String[] args)
 	{
 		boolean setEl = false;
@@ -28,6 +36,10 @@ public class CommandLineParser
 				if(s.equals("-v") || s.equals("-verbose"))
 				{
 					verbose = true;
+				}
+				else if(s.equals("-mt") || s.equals("-manualthreshold"))
+				{
+					learn = false;
 				}
 				continue;
 			}
@@ -86,10 +98,18 @@ public class CommandLineParser
 			{
 				minLength = Integer.parseInt(val);
 			}
+			else if(argName.equals("puc"))
+			{
+				propUncontained = Double.parseDouble(val);
+			}
 		}
 		if(!setEl)
 		{
-			el = (1+w) * 50;
+			setEl();
 		}
+	}
+	void setEl()
+	{
+		el = (int)(.6 * (1+w) / p);
 	}
 }

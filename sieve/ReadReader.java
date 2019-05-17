@@ -89,4 +89,19 @@ public class ReadReader {
 	{
 		return last != null || input.hasNext();
 	}
+	
+	Read[] getAllReads()
+	{
+		ArrayList<Read> list = new ArrayList<Read>();
+		while(hasNext())
+		{
+			String nextName = getNextName();
+			String nextRead = getNextRead();
+			list.add(new Read(nextName, nextRead, readCount-1));
+		}
+		int n = list.size();
+		Read[] res = new Read[n];
+		for(int i = 0; i<n; i++) res[i] = list.get(i);
+		return res;
+	}
 }
