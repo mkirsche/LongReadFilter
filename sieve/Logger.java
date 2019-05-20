@@ -34,13 +34,15 @@ public class Logger {
 		int numMinimizers;
 		int[] chain;
 		boolean contained;
+		int leftEnd, rightEnd;
 		LogElement()
 		{
 			
 		}
 		public String toString()
 		{
-			return readName + "\t" + longestChain + "\t" + Arrays.toString(chain) + "\t" + readLength + "\t" + numCandidates + "\t" + numMinimizers + "\t" + contained;
+			return readName + "\t" + longestChain + "\t" + Arrays.toString(chain) + "\t" + readLength + "\t" 
+					+ numCandidates + "\t" + numMinimizers + "\t" + contained + "\t" + leftEnd + "\t" + rightEnd;
 		}
 	}
 }

@@ -107,6 +107,8 @@ public class ReadIndex {
 		le.readLength = r.s.length();
 		le.numMinimizers = kmers.length;
 		le.longestChain = 0;
+		le.leftEnd = le.readLength;
+		le.rightEnd = le.readLength;
 		le.contained = false;
 		le.chain = new int[] {};
 		
@@ -132,6 +134,9 @@ public class ReadIndex {
 			if(!le.contained && matchChain.length > le.longestChain)
 			{
 				le.longestChain = matchChain.length;
+				int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
+				le.leftEnd = endLengths[0];
+				le.rightEnd = endLengths[1];
 				le.chain = new int[matchChain.length];
 				for(int i = 0; i<le.chain.length; i++)
 				{
@@ -155,6 +160,9 @@ public class ReadIndex {
 					if(matchChain.length > le.longestChain || !le.contained)
 					{
 						le.longestChain = matchChain.length;
+						int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
+						le.leftEnd = endLengths[0];
+						le.rightEnd = endLengths[1];
 						le.chain = new int[matchChain.length];
 						for(int i = 0; i<le.chain.length; i++)
 						{
@@ -226,6 +234,17 @@ public class ReadIndex {
 			}
 		}
 		return hits;
+	}
+	int[] getUnalignedEnds(ArrayList<Hit> sharedKmers, int[] matchChain, int readLength)
+	{
+		int leftEnd = readLength, rightEnd = readLength;
+		for(int index : matchChain)
+		{
+			Hit h = sharedKmers.get(index);
+			leftEnd = Math.min(leftEnd, h.myIndex);
+			rightEnd = Math.min(rightEnd, readLength - k - h.myIndex);
+		}
+		return new int[] {leftEnd, rightEnd};
 	}
 	boolean chainContaining(ArrayList<Hit> sharedKmers, int[] matchChain, int numMinimizers, int readLength, double threshold, int endLength)
 	{
