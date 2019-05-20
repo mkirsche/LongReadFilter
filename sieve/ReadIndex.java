@@ -114,6 +114,7 @@ public class ReadIndex {
 		le.contained = false;
 		le.containingName = "none";
 		le.chain = new int[] {};
+		le.theirChain = new int[] {};
 		
 		for(int readKey : hits.keySet())
 		{
@@ -141,10 +142,12 @@ public class ReadIndex {
 				le.leftEnd = endLengths[0];
 				le.rightEnd = endLengths[1];
 				le.chain = new int[matchChain.length];
+				le.theirChain = new int[matchChain.length];
 				le.containingName = names[readKey/2];
 				for(int i = 0; i<le.chain.length; i++)
 				{
 					le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
+					le.theirChain[i] = sharedKmers.get(matchChain[i]).rp.p;
 				}
 			}
 			boolean chainContaining = chainContaining(sharedKmers, matchChain, numMinimizers, r.s.length(), threshold, endLength);
@@ -168,10 +171,12 @@ public class ReadIndex {
 						le.leftEnd = endLengths[0];
 						le.rightEnd = endLengths[1];
 						le.chain = new int[matchChain.length];
+						le.theirChain = new int[matchChain.length];
 						le.containingName = names[readKey/2];
 						for(int i = 0; i<le.chain.length; i++)
 						{
 							le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
+							le.theirChain[i] = sharedKmers.get(matchChain[i]).rp.p;
 						}
 						le.contained = true;
 					}
@@ -266,6 +271,7 @@ public class ReadIndex {
 			if(cur.myIndex + k + endLength > readLength) countRightEnd++;
 		}
 		if(countLeftEnd == 0 || countRightEnd == 0) return false;
+		
 		return true;
 	}
 	// Gets the sequence of indices in the longest increasing subsequence

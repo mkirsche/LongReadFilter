@@ -33,6 +33,7 @@ public class Logger {
 		int numCandidates;
 		int numMinimizers;
 		int[] chain;
+		int[] theirChain;
 		boolean contained;
 		String containingName;
 		int leftEnd, rightEnd;
@@ -44,7 +45,7 @@ public class Logger {
 		{
 			return readName + "\t" + longestChain + "\t" + Arrays.toString(chain) + "\t" + readLength + "\t" 
 					+ numCandidates + "\t" + numMinimizers + "\t" + contained + "\t" + leftEnd + "\t" + rightEnd + "\t"
-					+ containingName;
+					+ containingName + "\t" + Arrays.toString(theirChain);
 		}
 	}
 }
