@@ -31,10 +31,12 @@ public class ReadIndex {
 		for(int i = 0; i<(1<<logNumMaps); i++) kmerMap[i] = new HashMap<>();
 		badKmers = new HashSet<>();
 		longReadNames = new ArrayList<>();
+		names = new String[n];
 		long totalReadLength = 0;
 		System.err.println("Building index with " + n + " reads");
 		for(int i = 0; i<n; i++)
 		{
+			names[i] = re.data[i].n;
 			add(i, re.data[i]);
 			if(clp.verbose && i > 0 && i%1000 == 0)
 			{
@@ -110,6 +112,7 @@ public class ReadIndex {
 		le.leftEnd = le.readLength;
 		le.rightEnd = le.readLength;
 		le.contained = false;
+		le.containingName = "none";
 		le.chain = new int[] {};
 		
 		for(int readKey : hits.keySet())
@@ -138,6 +141,7 @@ public class ReadIndex {
 				le.leftEnd = endLengths[0];
 				le.rightEnd = endLengths[1];
 				le.chain = new int[matchChain.length];
+				le.containingName = names[readKey/2];
 				for(int i = 0; i<le.chain.length; i++)
 				{
 					le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;
@@ -164,6 +168,7 @@ public class ReadIndex {
 						le.leftEnd = endLengths[0];
 						le.rightEnd = endLengths[1];
 						le.chain = new int[matchChain.length];
+						le.containingName = names[readKey/2];
 						for(int i = 0; i<le.chain.length; i++)
 						{
 							le.chain[i] = sharedKmers.get(matchChain[i]).myIndex;

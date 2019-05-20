@@ -34,6 +34,7 @@ public class Logger {
 		int numMinimizers;
 		int[] chain;
 		boolean contained;
+		String containingName;
 		int leftEnd, rightEnd;
 		LogElement()
 		{
@@ -42,7 +43,8 @@ public class Logger {
 		public String toString()
 		{
 			return readName + "\t" + longestChain + "\t" + Arrays.toString(chain) + "\t" + readLength + "\t" 
-					+ numCandidates + "\t" + numMinimizers + "\t" + contained + "\t" + leftEnd + "\t" + rightEnd;
+					+ numCandidates + "\t" + numMinimizers + "\t" + contained + "\t" + leftEnd + "\t" + rightEnd + "\t"
+					+ containingName;
 		}
 	}
 }
