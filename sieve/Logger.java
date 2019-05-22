@@ -37,6 +37,7 @@ public class Logger {
 		boolean contained;
 		String containingName;
 		int leftEnd, rightEnd;
+		double ctScore;
 		LogElement()
 		{
 			
@@ -45,7 +46,7 @@ public class Logger {
 		{
 			return readName + "\t" + longestChain + "\t" + Arrays.toString(chain) + "\t" + readLength + "\t" 
 					+ numCandidates + "\t" + numMinimizers + "\t" + contained + "\t" + leftEnd + "\t" + rightEnd + "\t"
-					+ containingName + "\t" + Arrays.toString(theirChain);
+					+ containingName + "\t" + Arrays.toString(theirChain) + "\t" + ctScore;
 		}
 	}
 }

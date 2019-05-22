@@ -17,7 +17,9 @@ public static void main(String[] args) throws IOException, InterruptedException
 		System.err.println("Using sample to learn threshold");
 		ParameterLearner pl = new ParameterLearner(index, re.sample, clp.propUncontained);
 		clp.p = pl.sharedCutoff;
+		clp.dpCutoff = pl.dpCutoff;
 		System.err.println("Updating proportion cutoff to " + clp.p);
+		System.err.println("Updating dynamic programming cutoff to " + clp.dpCutoff);
 		clp.setEl();
 		System.err.println("Updating end length to " + clp.el);
 	}

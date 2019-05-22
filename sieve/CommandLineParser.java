@@ -5,10 +5,12 @@ public class CommandLineParser
 	static boolean localDebug = true;
 	String fn = localDebug ? "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedreads.fa"
 			: "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
-	String ofn = "/home/mkirsche/github/ContainedReadRemoval/sim/sievedreads.out";
+	String ofn = localDebug ? "/home/mkirsche/github/ContainedReadRemoval/sim/sievedreads.out"
+			: "/home/mkirsche/github/ContainedReadRemoval/sim/sievedarabareads.out";
 	double indexSize = 0.02; // What proportion of the reads should be in the index
 	String readSplitScript = "/home/mkirsche/github/LongReadFilter/split_reads.sh";
-	String uncontainedReadFile = "uncontainedreadnames.txt";
+	String uncontainedReadFile = localDebug ? "uncontainedreadnames.txt"
+			: "arabauncontainedreadnames.txt";
 	String logfile = localDebug ? "log.txt" : null;
 	int k = 15;
 	int w = 11;
@@ -17,6 +19,8 @@ public class CommandLineParser
 	double p = 0.01;
 	int el = 500;
 	int nt = 4;
+	
+	double dpCutoff = .5;
 	
 	boolean verbose = false;
 	boolean learn = true;

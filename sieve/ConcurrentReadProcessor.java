@@ -2,6 +2,7 @@ package sieve;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,7 +50,7 @@ public class ConcurrentReadProcessor {
 		System.err.println("All threads launched " + timer.time());
 	}
 	
-	void run() throws InterruptedException
+	void run() throws InterruptedException, IOException
 	{
 		while(re.rr.hasNext())
 		{

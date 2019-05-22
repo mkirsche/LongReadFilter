@@ -10,12 +10,17 @@ import java.util.Comparator;
 public class ParameterLearner {
 	
 	double sharedCutoff;
+	double dpCutoff;
 
 	ParameterLearner(ReadIndex ri, Read[] sample, double propUncontained)
 	{
 		double[][] data = ri.getParamInfo(sample);
 		Integer[] sortedByPropShared = sortByIndex(data, 0);
 		sharedCutoff = data[sortedByPropShared[(int)(sample.length * propUncontained)]][0];
+		double error = 1 - Math.pow(data[sortedByPropShared[(int)(sample.length * propUncontained)]][0], .5 / ri.k);
+		double expectedDifferentBases = error*2 - error*error;
+		dpCutoff = 1 - 2 * expectedDifferentBases;
+		dpCutoff = dpCutoff * dpCutoff;
 	}
 	
 	static Integer[] sortByIndex(double[][] data, int index)
