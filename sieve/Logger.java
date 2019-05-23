@@ -37,6 +37,7 @@ public class Logger {
 		boolean contained;
 		String containingName;
 		int leftEnd, rightEnd;
+		int maxEnd;
 		double ctScore;
 		LogElement()
 		{

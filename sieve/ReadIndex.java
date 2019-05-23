@@ -16,11 +16,13 @@ public class ReadIndex {
 	boolean minimizers;
 	boolean verbose;
 	CommandLineParser clp;
+	int lengthThreshold;
 	Read[] data;
 	
 	@SuppressWarnings("unchecked")
 	ReadIndex(ReadLengthSeparator re, CommandLineParser clp) throws IOException
 	{
+		lengthThreshold = re.lengthThreshold;
 		this.data = re.data;
 		this.clp = clp;
 		w = clp.w;
@@ -118,6 +120,8 @@ public class ReadIndex {
 		
 		int bestKey = -1;
 		
+		TreeMap<Integer, ArrayList<Integer>> scoreToKey = new TreeMap<>();
+		
 		for(int readKey : hits.keySet())
 		{
 			ArrayList<Hit> sharedKmers = hits.get(readKey);
@@ -126,6 +130,10 @@ public class ReadIndex {
 				continue;
 			}
 			int readIndex = readKey / 2;
+			if(readLength >= data[readIndex].s.length())
+			{
+				continue;
+			}
 			int theirStrand = readKey % 2;
 			
 			Collections.sort(sharedKmers);
@@ -137,11 +145,23 @@ public class ReadIndex {
 			
 			int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0, threshold);
 			
-			if(!le.contained && matchChain.length > le.longestChain)
+			int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
+			int maxEnd = Math.max(endLengths[0], endLengths[1]);
+			
+			if(!scoreToKey.containsKey(maxEnd))
+			{
+				scoreToKey.put(maxEnd, new ArrayList<>());
+			}
+			
+			scoreToKey.get(maxEnd).add(readKey);
+			
+			int oldMax = Math.max(le.leftEnd, le.rightEnd);
+			if(oldMax < 0) oldMax = le.readLength + 1;
+			
+			if(!le.contained && maxEnd < oldMax)
 			{
 				bestKey = readKey;
 				le.longestChain = matchChain.length;
-				int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
 				le.leftEnd = endLengths[0];
 				le.rightEnd = endLengths[1];
 				le.chain = new int[matchChain.length];
@@ -153,16 +173,8 @@ public class ReadIndex {
 					le.theirChain[i] = sharedKmers.get(matchChain[i]).rp.p;
 				}
 			}
-			boolean chainContaining = chainContaining(sharedKmers, matchChain, numMinimizers, r.s.length(), threshold, endLength);
-			
-			/*int[] curEndLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
-			int maxEl = Math.max(curEndLengths[0], curEndLengths[1]);
-			if(!chainContaining && maxEl > endLength && maxEl < 1.5 * endLength)
-			{
-				double score = dpContains(r, sharedKmers, matchChain);
-				le.ctScore = Math.max(score, le.ctScore);
-				chainContaining |= score > .5;
-			}*/
+			boolean chainContaining = r.s.length() < lengthThreshold &&
+					chainContaining(sharedKmers, matchChain, numMinimizers, r.s.length(), threshold, endLength);
 			
 			if(chainContaining)
 			{
@@ -177,11 +189,10 @@ public class ReadIndex {
 				}
 				else
 				{
-					if(matchChain.length > le.longestChain || !le.contained)
+					if(maxEnd < oldMax || !le.contained)
 					{
 						bestKey = readKey;
 						le.longestChain = matchChain.length;
-						int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
 						le.leftEnd = endLengths[0];
 						le.rightEnd = endLengths[1];
 						le.chain = new int[matchChain.length];
@@ -197,22 +208,40 @@ public class ReadIndex {
 				}
 			}
 		}
+		int maxAttempts = 5;
+		int attempts = 0;
+		int last = -1;
 		if(bestKey != -1 && (logger == null || !le.contained))
 		{
-			ArrayList<Hit> sharedKmers = hits.get(bestKey);
-			int theirStrand = bestKey % 2;
-			int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0, threshold);
-			//if(chainContaining(sharedKmers, matchChain, numMinimizers, r.s.length(), threshold, endLength*100))
+			boolean found = false;
+			while(!found && attempts < maxAttempts && (last == -1 || scoreToKey.higherKey(last) != null))
 			{
-				double score = dpContains(r, sharedKmers, matchChain, matchChain.length < threshold * numMinimizers);
-				le.ctScore = score;
-				if(score > clp.dpCutoff)
+				int curScore = last == -1 ? scoreToKey.firstKey() : scoreToKey.higherKey(last);
+				last = curScore;
+				ArrayList<Integer> keys = scoreToKey.get(curScore);
+				for(int i = 0; i<keys.size() && attempts < maxAttempts && !found; i++, attempts++)
 				{
-					if(logger != null)
+					int curKey = keys.get(i);
+					ArrayList<Hit> sharedKmers = hits.get(curKey);
+					int theirStrand = curKey % 2;
+					int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0, threshold);
+					int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
+					if(r.s.length() >= lengthThreshold && endLength * 5 < Math.max(endLengths[0], endLengths[1]))
 					{
-						le.contained = true;
+						continue;
 					}
-					else return true;
+					double score = dpContains(r, sharedKmers, matchChain, 
+							matchChain.length < threshold * numMinimizers || r.s.length() >= lengthThreshold);
+					le.ctScore = score;
+					if(score > clp.dpCutoff)
+					{
+						found = true;
+						if(logger != null)
+						{
+							le.contained = true;
+						}
+						else return true;
+					}
 				}
 			}
 		}
@@ -309,7 +338,6 @@ public class ReadIndex {
 		
 		String leftquery = r.s.substring(0, leftmost.myIndex);
 		String rightquery = r.s.substring(rightmost.myIndex + k);
-		//String query = leftquery + rightquery;
 		
 		String leftCand = data[index].s.substring(subStart, theirMin);
 		String rightCand = data[index].s.substring(theirMax + k, subEnd);
@@ -318,15 +346,8 @@ public class ReadIndex {
 		
 		if(strand == 0)
 		{
-			//String tmp = leftCand;
-			//leftCand = revComp(rightCand);
-			//rightCand = revComp(tmp);
 			res = Math.min(dp(revComp(leftquery), revComp(leftCand)), dp(rightquery, rightCand));
 		}
-		//String candidate = leftCand + rightCand;
-		//String query = r.s;
-		//String candidate = substring;
-		//return dp(query, candidate);
 		else
 		{
 			res = Math.min(dp(rightquery, revComp(leftCand)), dp(revComp(leftquery), rightCand));
@@ -357,10 +378,10 @@ public class ReadIndex {
 		int[][] dp = new int[2][m+1];
 		int maxScore = -n;
 		for(int i = 0; i<=n; i++)
-			for(int j = Math.max(0, i - 100); j <= Math.min(m, i + 100); j++)
+			for(int j = Math.max(0, i - 50); j <= Math.min(m, i + 50); j++)
 			{
 				dp[i&1][j] = -i;
-				if(i > 0) dp[i&1][j] = Math.max(dp[i&1][j], dp[(i&1)^1][j] - 3);
+				if(i > 0) dp[i&1][j] = Math.max(dp[i&1][j], dp[(i&1)^1][j] - 5);
 				if(j > 0) dp[i&1][j] = Math.max(dp[i&1][j], dp[i&1][j-1] - 1);
 				if(i > 0 && j > 0)
 				{

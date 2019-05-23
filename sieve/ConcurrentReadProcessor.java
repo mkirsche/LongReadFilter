@@ -21,6 +21,7 @@ public class ConcurrentReadProcessor {
 	MyThread[] threads;
 	WriterThread wt;
 	boolean[] contained;
+	boolean[] smallRead;
 	
 	Logger logger;
 	
@@ -40,6 +41,7 @@ public class ConcurrentReadProcessor {
 		readsProcessed = new AtomicInteger(0);
 		countContained = new AtomicInteger(0);
 		contained = new boolean[re.n];
+		smallRead = new boolean[re.n];
 		for(int i = 0; i<numThreads; i++)
 		{
 			threads[i] = new MyThread();
@@ -65,23 +67,45 @@ public class ConcurrentReadProcessor {
 			}
 			toProcess.add(cur);
 		}
-		for(String s : index.longReadNames)
-		{
-			toWriteName.add(s);
-		}
+//		for(String s : index.longReadNames)
+//		{
+//			toWriteName.add(s);
+//		}
 		while(true)
 		{
 			if(readsProcessed.get() == re.n - index.n)
 			{
+				// All small reads done - start processing indexed reads
+				int idx = 0;
+				for(int i = 0; i<index.data.length; i++)
+				{
+					while(toProcess.size() > 100)
+					{
+						Thread.sleep(1000);
+					}
+					while(smallRead[idx]) idx++;
+					index.data[i].i = idx;
+					idx++;
+					toProcess.add(index.data[i]);
+				}
+			}
+			else if(readsProcessed.get() == re.n)
+			{
+				// All reads done - tell threads to stop looking for reads to check
 				for(int i = 0; i<threads.length; i++)
 				{
 					threads[i].done = true;
 				}
 				break;
 			}
-			Thread.sleep(1000);
+			else
+			{
+				Thread.sleep(1000);
+			}
 		}
 		for(int i = 0; i<threads.length; i++) threads[i].join();
+		
+		// Wait for writing thread to finish
 		while(!toWriteName.isEmpty())
 		{
 			Thread.sleep(1000);
@@ -108,6 +132,7 @@ public class ConcurrentReadProcessor {
 					 cur = toProcess.poll();
 					 if(cur != null)
 					 {
+						 smallRead[cur.i] = true;
 						 boolean c = index.contains(cur, logger);
 						 int cc = countContained.get();
 						 if(c)
