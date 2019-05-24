@@ -11,28 +11,27 @@ public class ReadIndex {
 	HashMap<Integer, LongList>[] kmerMap;
 	HashSet<Long> badKmers;
 	ArrayList<String> longReadNames;
-	int logNumMaps = 16;
-	int posStrandBits = 23;
-	boolean minimizers;
+	
 	boolean verbose;
 	CommandLineParser clp;
 	int lengthThreshold;
 	Read[] data;
+	DynamicProgrammingAligner dpa;
 	
 	@SuppressWarnings("unchecked")
 	ReadIndex(ReadLengthSeparator re, CommandLineParser clp) throws IOException
 	{
+		dpa = new DynamicProgrammingAligner();
 		lengthThreshold = re.lengthThreshold;
 		this.data = re.data;
 		this.clp = clp;
 		w = clp.w;
-		minimizers = w > 1;
 		verbose = clp.verbose;
 		k = clp.k;
 		n = re.data.length;
 		countContaining = new int[n];
-		kmerMap = new HashMap[1<<logNumMaps];
-		for(int i = 0; i<(1<<logNumMaps); i++) kmerMap[i] = new HashMap<>();
+		kmerMap = new HashMap[1<<clp.logNumMaps];
+		for(int i = 0; i<(1<<clp.logNumMaps); i++) kmerMap[i] = new HashMap<>();
 		badKmers = new HashSet<>();
 		longReadNames = new ArrayList<>();
 		long totalReadLength = 0;
@@ -53,6 +52,7 @@ public class ReadIndex {
 		System.err.println("Bad kmers: " + badKmers.size());
 	}
 	
+	// Gets parameter information based on querying a sample of reads - used by ParameterLearner
 	double[][] getParamInfo(Read[] rs)
 	{
 		int numReads = rs.length;
@@ -60,7 +60,7 @@ public class ReadIndex {
 		for(int i = 0; i<numReads; i++)
 		{
 			Read r = rs[i];
-			long[] kmers = minimizers ? KmerFinder.minimizers(r.s, k, w, posStrandBits) : KmerFinder.kmers(r.s, k);
+			long[] kmers = KmerFinder.minimizers(r.s, k, w, clp.posStrandBits);
 			HashMap<Integer, ArrayList<Hit>> hits = getHits(r, kmers);
 			
 			int longestChain = 0;
@@ -100,11 +100,14 @@ public class ReadIndex {
 			return true;
 		}
 		
-		long[] kmers = minimizers ? KmerFinder.minimizers(r.s, k, w, posStrandBits) : KmerFinder.kmers(r.s, k);
+		// Kmerize the query read
+		long[] kmers = KmerFinder.minimizers(r.s, k, w, clp.posStrandBits);
 		int numMinimizers = kmers.length;
 		
+		// Get all kmer matches against any database reads
 		HashMap<Integer, ArrayList<Hit>> hits = getHits(r, kmers);
 		
+		// Initialize logging information
 		le.numCandidates = hits.keySet().size();
 		le.readName = r.n;
 		le.readLength = r.s.length();
@@ -125,39 +128,47 @@ public class ReadIndex {
 		for(int readKey : hits.keySet())
 		{
 			ArrayList<Hit> sharedKmers = hits.get(readKey);
+			
+			// If there are too few hits to possibly form a long enough chain, ignore
 			if(sharedKmers.size() < threshold * numMinimizers)
 			{
 				continue;
 			}
+			
+			// Get the read index and strand
 			int readIndex = readKey / 2;
+			int theirStrand = readKey % 2;
+
+			// If the database read is too short to possibly contain the query, ignore
 			if(readLength >= data[readIndex].s.length())
 			{
 				continue;
 			}
-			int theirStrand = readKey % 2;
 			
+			// Sort matches by their position in query read
 			Collections.sort(sharedKmers);
-			
 			if(theirStrand != 0)
 			{
 				Collections.reverse(sharedKmers);
 			}
 			
+			// Get matches which form longest subsequence of increasing positions in database read
 			int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0, threshold);
 			
+			// Store how close this chain gets to end of query - 
+			//   to be used when selecting which alignments to investigate further
 			int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
 			int maxEnd = Math.max(endLengths[0], endLengths[1]);
-			
 			if(!scoreToKey.containsKey(maxEnd))
 			{
 				scoreToKey.put(maxEnd, new ArrayList<>());
 			}
-			
 			scoreToKey.get(maxEnd).add(readKey);
 			
 			int oldMax = Math.max(le.leftEnd, le.rightEnd);
 			if(oldMax < 0) oldMax = le.readLength + 1;
 			
+			// If this gets close to the ends, update best alignment for potential logging
 			if(!le.contained && maxEnd < oldMax)
 			{
 				bestKey = readKey;
@@ -173,9 +184,13 @@ public class ReadIndex {
 					le.theirChain[i] = sharedKmers.get(matchChain[i]).rp.p;
 				}
 			}
+			
+			// Check if the chain length/proximity to ends is good enough to call this contained
+			// Don't do this if querying a database read since we want to be more careful about removing longer reads
 			boolean chainContaining = r.s.length() < lengthThreshold &&
 					chainContaining(sharedKmers, matchChain, numMinimizers, r.s.length(), threshold, endLength);
 			
+			// If it is contained, return true (or mark and keep going if logging results)
 			if(chainContaining)
 			{
 				countContaining[readIndex]++;
@@ -208,33 +223,42 @@ public class ReadIndex {
 				}
 			}
 		}
-		int maxAttempts = 5;
+		
+		// Now, if close matches were found, use dynamic programming to investigate further
+		// Iterate in order of how close the kmer chains got to the ends of the query read
 		int attempts = 0;
 		int last = -1;
+		le.dpNames = new ArrayList<String>();
 		if(bestKey != -1 && (logger == null || !le.contained))
 		{
 			boolean found = false;
-			while(!found && attempts < maxAttempts && (last == -1 || scoreToKey.higherKey(last) != null))
+			while(!found && attempts < clp.maxAttempts && (last == -1 || scoreToKey.higherKey(last) != null))
 			{
 				int curScore = last == -1 ? scoreToKey.firstKey() : scoreToKey.higherKey(last);
 				last = curScore;
 				ArrayList<Integer> keys = scoreToKey.get(curScore);
-				for(int i = 0; i<keys.size() && attempts < maxAttempts && !found; i++, attempts++)
+				for(int i = 0; i<keys.size() && attempts < clp.maxAttempts && !found; i++, attempts++)
 				{
 					int curKey = keys.get(i);
 					ArrayList<Hit> sharedKmers = hits.get(curKey);
 					int theirStrand = curKey % 2;
+					le.dpNames.add(data[curKey/2].n);
 					int[] matchChain = lis(r.s.length(), sharedKmers, theirStrand == 0, threshold);
 					int[] endLengths = getUnalignedEnds(sharedKmers, matchChain, r.s.length());
+					
+					// If this is a database read, add extra end length criteria
 					if(r.s.length() >= lengthThreshold && endLength * 5 < Math.max(endLengths[0], endLengths[1]))
 					{
 						continue;
 					}
-					double score = dpContains(r, sharedKmers, matchChain, 
+					
+					// Get alignment score and return true if high enough
+					double score = dpa.dpContains(data[sharedKmers.get(0).rp.rs/2], k, r, sharedKmers, matchChain, 
 							matchChain.length < threshold * numMinimizers || r.s.length() >= lengthThreshold);
-					le.ctScore = score;
+					le.ctScore = Math.max(le.ctScore, score);
 					if(score > clp.dpCutoff)
 					{
+						countContaining[curKey/2]++;
 						found = true;
 						if(logger != null)
 						{
@@ -255,54 +279,25 @@ public class ReadIndex {
 	HashMap<Integer, ArrayList<Hit>> getHits(Read r, long[] kmers)
 	{
 		HashMap<Integer, ArrayList<Hit>> hits = new HashMap<>();
-		
-		if(!minimizers)
+		for(long miniKmer : kmers)
 		{
-			// Loop through both strands since only forward strand in index
-			for(int strand = 0; strand<2; strand++)
+			int strand = (int)(miniKmer&1);
+			int i = ((int) (miniKmer & ((1L << (clp.posStrandBits)) - 1))) >> 1;
+			long kmer = miniKmer >> clp.posStrandBits;
+			if(badKmers.contains(kmer)) continue;
+			LongList currentHits = kmerMap[(int)(kmer&((1<<clp.logNumMaps)-1))].get((int)(kmer>>clp.logNumMaps));
+			if(currentHits == null) continue;
+			for(int hitIndex = 0; hitIndex<currentHits.size; hitIndex++)
 			{
-				for(int i = strand; i<kmers.length; i+=2)
+				ReadPosition rp = ReadPosition.decode(currentHits.a[hitIndex]);
+				if(rp.rs%2 != strand) rp.rs |= 1;
+				else if(rp.rs%2 == 1) rp.rs--;
+				int readKey = rp.rs;
+				if(!hits.containsKey(readKey))
 				{
-					long kmer = kmers[i];
-					if(badKmers.contains(kmer)) continue;
-					LongList currentHits = kmerMap[(int)(kmer&((1<<logNumMaps)-1))].get((int)(kmer>>logNumMaps));
-					if(currentHits == null) continue;
-					for(int hitIndex = 0; hitIndex<currentHits.size; hitIndex++)
-					{
-						ReadPosition rp = ReadPosition.decode(currentHits.a[hitIndex]);
-						if(rp.rs%2 != strand) rp.rs ^= 1;
-						int readKey = rp.rs;
-						if(!hits.containsKey(readKey))
-						{
-							hits.put(readKey, new ArrayList<>());
-						}
-						hits.get(readKey).add(new Hit(rp, i));
-					}
+					hits.put(readKey, new ArrayList<>());
 				}
-			}
-		}
-		else
-		{
-			for(long miniKmer : kmers)
-			{
-				int strand = (int)(miniKmer&1);
-				int i = ((int) (miniKmer & ((1L << (posStrandBits)) - 1))) >> 1;
-				long kmer = miniKmer >> posStrandBits;
-				if(badKmers.contains(kmer)) continue;
-				LongList currentHits = kmerMap[(int)(kmer&((1<<logNumMaps)-1))].get((int)(kmer>>logNumMaps));
-				if(currentHits == null) continue;
-				for(int hitIndex = 0; hitIndex<currentHits.size; hitIndex++)
-				{
-					ReadPosition rp = ReadPosition.decode(currentHits.a[hitIndex]);
-					if(rp.rs%2 != strand) rp.rs |= 1;
-					else if(rp.rs%2 == 1) rp.rs--;
-					int readKey = rp.rs;
-					if(!hits.containsKey(readKey))
-					{
-						hits.put(readKey, new ArrayList<>());
-					}
-					hits.get(readKey).add(new Hit(rp, i));
-				}
+				hits.get(readKey).add(new Hit(rp, i));
 			}
 		}
 		return hits;
@@ -317,99 +312,6 @@ public class ReadIndex {
 			rightEnd = Math.min(rightEnd, readLength - k - h.myIndex);
 		}
 		return new int[] {leftEnd, rightEnd};
-	}
-	double dpContains(Read r, ArrayList<Hit> sharedKmers, int[] matchChain, boolean checkMiddle)
-	{
-		int rs = sharedKmers.get(0).rp.rs;
-		int index = rs / 2;
-		int strand = rs % 2;
-		Hit leftmost = null, rightmost = null;
-		for(int idx : matchChain)
-		{
-			Hit h = sharedKmers.get(idx);
-			if(leftmost == null || h.myIndex < leftmost.myIndex) leftmost = h;
-			if(rightmost == null || h.myIndex > rightmost.myIndex) rightmost = h;
-		}
-		int theirMin = Math.min(leftmost.rp.p, rightmost.rp.p);
-		int theirMax = leftmost.rp.p + rightmost.rp.p - theirMin;
-		
-		int subStart = Math.max(0, theirMin - 2 * leftmost.myIndex);
-		int subEnd = Math.min(data[index].s.length()-1, theirMax + 2 * (r.s.length() - rightmost.myIndex));
-		
-		String leftquery = r.s.substring(0, leftmost.myIndex);
-		String rightquery = r.s.substring(rightmost.myIndex + k);
-		
-		String leftCand = data[index].s.substring(subStart, theirMin);
-		String rightCand = data[index].s.substring(theirMax + k, subEnd);
-		
-		double res = 1.0;
-		
-		if(strand == 0)
-		{
-			res = Math.min(dp(revComp(leftquery), revComp(leftCand)), dp(rightquery, rightCand));
-		}
-		else
-		{
-			res = Math.min(dp(rightquery, revComp(leftCand)), dp(revComp(leftquery), rightCand));
-		}
-		
-		if(checkMiddle)
-		{
-			String middlequery = r.s.substring(leftmost.myIndex, rightmost.myIndex);
-			String middleCand = data[index].s.substring(theirMin, theirMax);
-			if(strand != 0)
-			{
-				middleCand = revComp(middleCand);
-			}
-			res = Math.min(res, dp(middlequery, middleCand));
-		}
-		
-		return res;
-	}
-	double dp(String query, String candidate)
-	{
-		int n = query.length();
-		int m = candidate.length();
-		if(n == 0)
-		{
-			return 1.0;
-		}
-		
-		int[][] dp = new int[2][m+1];
-		int maxScore = -n;
-		for(int i = 0; i<=n; i++)
-			for(int j = Math.max(0, i - 50); j <= Math.min(m, i + 50); j++)
-			{
-				dp[i&1][j] = -i;
-				if(i > 0) dp[i&1][j] = Math.max(dp[i&1][j], dp[(i&1)^1][j] - 5);
-				if(j > 0) dp[i&1][j] = Math.max(dp[i&1][j], dp[i&1][j-1] - 1);
-				if(i > 0 && j > 0)
-				{
-					int score = (query.charAt(i-1) == candidate.charAt(j-1)) ? 1 : -1;
-					dp[i&1][j] = Math.max(dp[i&1][j], dp[(i&1)^1][j-1] + score);
-				}
-				if(i == n)
-				{
-					maxScore = Math.max(maxScore, dp[i&1][j]);
-				}
-			}
-		
-		double prop = maxScore * 1.0 / n;
-		
-		return prop;
-	}
-	String revComp(String s)
-	{
-		char[] res = new char[s.length()];
-		for(int i = 0; i<s.length(); i++)
-		{
-			char c = s.charAt(s.length()-1-i);
-			if(c == 'A') res[i] = 'T';
-			else if(c == 'C') res[i] = 'G';
-			else if(c == 'G') res[i] = 'C';
-			else res[i] = 'A';
-		}
-		return new String(res);
 	}
 	boolean chainContaining(ArrayList<Hit> sharedKmers, int[] matchChain, int numMinimizers, int readLength, double threshold, int endLength)
 	{
@@ -454,7 +356,7 @@ public class ReadIndex {
 				int myJump = Math.abs(cur.myIndex - last.myIndex);
 				int theirJump = Math.abs(cur.rp.p - last.rp.p);
 				validTransition &= theirJump >= .8 * myJump && theirJump <= 1.2 * myJump;
-				validTransition &= myJump * threshold < 30.0;
+				validTransition &= myJump * threshold < 25.0;
 				if(validTransition && maxVal[j] + currentVal > maxVal[i])
 				{
 					backPointer[i] = j;
@@ -482,26 +384,14 @@ public class ReadIndex {
 	void add(int index, Read cur)
 	{
 		longReadNames.add(cur.n);
-		if(!minimizers)
+		long[] miniKmers = KmerFinder.minimizers(cur.s, k, w, clp.posStrandBits);
+		for(long miniKmer : miniKmers)
 		{
-			long[][] kmers = KmerFinder.kmerize(cur.s, k);
-			for(int i = 0; i<kmers[0].length; i++)
-			{
-				ReadPosition forward = new ReadPosition(index, i);
-				addKeyValue(kmers[0][i], forward);
-			}
-		}
-		else
-		{
-			long[] miniKmers = KmerFinder.minimizers(cur.s, k, w, posStrandBits);
-			for(long miniKmer : miniKmers)
-			{
-				int strand = (int)(miniKmer&1);
-				int i = ((int) (miniKmer & ((1L << (posStrandBits)) - 1))) >> 1;
-				long kmer = miniKmer >> posStrandBits;
-				ReadPosition toAdd = new ReadPosition(index, i, strand);
-				addKeyValue(kmer, toAdd);
-			}
+			int strand = (int)(miniKmer&1);
+			int i = ((int) (miniKmer & ((1L << (clp.posStrandBits)) - 1))) >> 1;
+			long kmer = miniKmer >> clp.posStrandBits;
+			ReadPosition toAdd = new ReadPosition(index, i, strand);
+			addKeyValue(kmer, toAdd);
 		}
 	}
 	void addKeyValue(long fullKey, ReadPosition value)
@@ -510,8 +400,8 @@ public class ReadIndex {
 		{
 			return;
 		}
-		HashMap<Integer, LongList> addingTo = kmerMap[(int)(fullKey & ((1<<logNumMaps)-1))];
-		int key = (int)(fullKey >> logNumMaps);
+		HashMap<Integer, LongList> addingTo = kmerMap[(int)(fullKey & ((1<<clp.logNumMaps)-1))];
+		int key = (int)(fullKey >> clp.logNumMaps);
 		if(!addingTo.containsKey(key)) addingTo.put((int)key, new LongList());
 		if(addingTo.get(key).size >= 100)
 		{

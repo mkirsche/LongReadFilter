@@ -3,6 +3,7 @@ package sieve;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -39,6 +40,7 @@ public class Logger {
 		int leftEnd, rightEnd;
 		int maxEnd;
 		double ctScore;
+		ArrayList<String> dpNames;
 		LogElement()
 		{
 			
@@ -47,7 +49,7 @@ public class Logger {
 		{
 			return readName + "\t" + longestChain + "\t" + Arrays.toString(chain) + "\t" + readLength + "\t" 
 					+ numCandidates + "\t" + numMinimizers + "\t" + contained + "\t" + leftEnd + "\t" + rightEnd + "\t"
-					+ containingName + "\t" + Arrays.toString(theirChain) + "\t" + ctScore;
+					+ containingName + "\t" + Arrays.toString(theirChain) + "\t" + ctScore + "\t" + dpNames;
 		}
 	}
 }

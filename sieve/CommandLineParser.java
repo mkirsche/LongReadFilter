@@ -2,32 +2,64 @@ package sieve;
 
 public class CommandLineParser
 {
-	static boolean localDebug = true;
+	// localDebug is whether or not the software is running on simulated data for debugging
+	static boolean localDebug = false;
+	
+	// fn is the default input read file name
 	String fn = localDebug ? "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedreads.fa"
 			: "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
+	
+	// ofn is the default output read file name
 	String ofn = localDebug ? "/home/mkirsche/github/ContainedReadRemoval/sim/sievedreads.out"
 			: "/home/mkirsche/github/ContainedReadRemoval/sim/sievedarabareads.out";
-	double indexSize = 0.02; // What proportion of the reads should be in the index
+	
+	// indexSize is the proportion of reads stored be in the index
+	double indexSize = 0.02;
+	
+	// readSplitScript is the path to the awk script for splitting indexed vs. non-indexed reads
 	String readSplitScript = "/home/mkirsche/github/LongReadFilter/split_reads.sh";
+	
+	// uncontainedReadFile is the output file where names of uncontained reads are written
 	String uncontainedReadFile = localDebug ? "uncontainedreadnames.txt"
 			: "arabauncontainedreadnames.txt";
+	
+	// logFile is the name of the file used for outputting logging information
 	String logfile = localDebug ? "log.txt" : null;
+	
+	// Size of kmers
 	int k = 15;
+	
+	// Window size for minimizers
 	int w = 11;
 	
-	// These two are overridden if learn is set to true, which it is by default
+	// These are overridden if learn is set to true, which it is by default
+	// p is the shared kmer proportion cutoff
+	// el is how close kmer chains must get to both ends of a read to call it contained
+	// dpCutoff is the alignment score necessary in the ends of a read to call a 
+	//   read contained which didn't meet the above cutoffs
 	double p = 0.01;
 	int el = 500;
-	int nt = 4;
-	
 	double dpCutoff = .5;
 	
+	// nt is the number of threads to use
+	int nt = 4;
+	
+	// verbose is whether or not to output additional logging info
 	boolean verbose = false;
+	
+	// learn is whether or not to let the reads inform thresholds
 	boolean learn = true;
+	
+	// minLength is the read length below which all reads are called as contained
 	int minLength = 12000;
 	
-	// Estimated proportion of short reads we want to label as uncontained - used for learning threshold
+	// propUncontained is the estimated proportion of short reads we want to label as uncontained
 	double propUncontained = .08;
+	
+	// These parameters are not (currently) customizable
+	int logNumMaps = 16;
+	int posStrandBits = 23;
+	int maxAttempts = 5;
 	
 	CommandLineParser(String[] args)
 	{
