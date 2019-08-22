@@ -10,7 +10,8 @@ public static void main(String[] args) throws IOException, InterruptedException
 	CommandLineParser clp = new CommandLineParser(args);
 	ReadLengthSeparator re = new ReadLengthSeparator(clp.fn, clp.indexSize, timer, clp.readSplitScript);
 	System.err.println(timer.time());
-	ReadIndex index = new ReadIndex(re, clp);
+	ReadIndex index = //new ScratchReadIndex(re, clp, "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedscores.txt");
+			new ReadIndex(re, clp);
 	
 	if(clp.learn && re.sample != null)
 	{

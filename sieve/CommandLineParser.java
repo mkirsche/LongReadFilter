@@ -3,21 +3,21 @@ package sieve;
 public class CommandLineParser
 {
 	// localDebug is whether or not the software is running on simulated data for debugging
-	static boolean localDebug = false;
+	static boolean localDebug = true;
 	
 	// fn is the default input read file name
-	String fn = localDebug ? "/home/mkirsche/github/ContainedReadRemoval/sim/simulatedreads.fa"
+	String fn = localDebug ? "/home/mkirsche/git/ContainedReadRemoval/sim/simulatedreads.fa"
 			: "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
 	
 	// ofn is the default output read file name
-	String ofn = localDebug ? "/home/mkirsche/github/ContainedReadRemoval/sim/sievedreads.out"
+	String ofn = localDebug ? "/home/mkirsche/git/ContainedReadRemoval/sim/sievedreads.out"
 			: "/home/mkirsche/github/ContainedReadRemoval/sim/sievedarabareads.out";
 	
 	// indexSize is the proportion of reads stored be in the index
 	double indexSize = 0.02;
 	
 	// readSplitScript is the path to the awk script for splitting indexed vs. non-indexed reads
-	String readSplitScript = "/home/mkirsche/github/LongReadFilter/split_reads.sh";
+	String readSplitScript = "/home/mkirsche/git/LongReadFilter/split_reads.sh";
 	
 	// uncontainedReadFile is the output file where names of uncontained reads are written
 	String uncontainedReadFile = localDebug ? "uncontainedreadnames.txt"
