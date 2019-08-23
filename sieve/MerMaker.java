@@ -5,7 +5,14 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 
-public class KmerFinder {
+/*
+ * This class handles the efficient generation of kmers and minimizers for a given string
+ */
+public class MerMaker {
+	
+	/*
+	 * Generates a 2 by (n-k+1) array of all kmers of a string
+	 */
 	static long[][] kmerize(String s, int k)
 	{
 		long[][] res = new long[2][s.length() - k + 1];
@@ -26,6 +33,10 @@ public class KmerFinder {
 		}
 		return res;
 	}
+	
+	/*
+	 * Generates an array of all kmers of a string with alternating strand
+	 */
 	static long[] kmers(String s, int k)
 	{
 		long[][] all = kmerize(s, k);
@@ -38,6 +49,10 @@ public class KmerFinder {
 		}
 		return res;
 	}
+	
+	/*
+	 * Same hash function used in minimap to get a hash of a number with with 2*k bits 
+	 */
 	static long hash64(long key, int k)
 	{
 		long mask = (1L << (2*k)) - 1;
@@ -50,6 +65,14 @@ public class KmerFinder {
 		key = (key + (key << 31)) & mask;
 		return key;
 	}
+	
+	/*
+	 * Computes the (w, k) minimizers of a String s.  Each minimizer is encoded as a 64-bit integer as follows:
+	 *     Lowest order bit is the strand (0 for given strand, 1 for reverse complement)
+	 *     The next <posStrandBits> bits are the position in the string where the kmer begins
+	 *         Note for the reverse strand the position is the minimum (so for s[5..2] it would be 2)
+	 *     The next 2*k bits are the contents of the kmer itself (after going through a random hash)
+	 */
 	static long[] minimizers(String s, int k, int w, int posStrandBits)
 	{
 		long[][] kmers = kmerize(s, k);
@@ -85,6 +108,11 @@ public class KmerFinder {
 		for(long x : minimizers) res[idx++] = x;
 		return res;
 	}
+	
+	/*
+	 * Appends a character to the end of an encoded kmer (and beginning of its reverse complement)
+	 *  and removes a character from the other end to keep the length as k.
+	 */
 	static long[] updateSlidingKmer(long[] cur, char ch, int k)
 	{
 		long kmer = cur[0];
@@ -102,6 +130,10 @@ public class KmerFinder {
 		
 		return new long[] {kmer, revComp};
 	}
+	
+	/*
+	 * A/a = 0, C/c = 1, G/g = 2, T/t = 3
+	 */
 	static int charToInt(char c)
 	{
 		if(c >= 'a' && c <= 'z') c += 'A' - 'a';
@@ -110,6 +142,17 @@ public class KmerFinder {
 		else if(c == 'G') return 2;
 		else return 3;
 	}
+	
+	/*
+	 * A minimum queue data structure, which supports the following operations:
+	 * 
+	 * 	mins() -> queries all elements with the minimum hashed kmer value
+	 *  min() -> returns any one element with the minimum hashed kmer value
+	 *  add(x) -> Adds x to the end of the queue
+	 *  remove() -> Removes an element from the beginning of the queue
+	 *  
+	 *  All of these operations are amortized constant time
+	 */
 	static class MinQueue
 	{
 		int posStrandBits;

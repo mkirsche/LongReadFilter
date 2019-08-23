@@ -60,7 +60,7 @@ public class ReadIndex {
 		for(int i = 0; i<numReads; i++)
 		{
 			Read r = rs[i];
-			long[] kmers = KmerFinder.minimizers(r.s, k, w, clp.posStrandBits);
+			long[] kmers = MerMaker.minimizers(r.s, k, w, clp.posStrandBits);
 			HashMap<Integer, ArrayList<Hit>> hits = getHits(r, kmers);
 			
 			int longestChain = 0;
@@ -101,7 +101,7 @@ public class ReadIndex {
 		}
 		
 		// Kmerize the query read
-		long[] kmers = KmerFinder.minimizers(r.s, k, w, clp.posStrandBits);
+		long[] kmers = MerMaker.minimizers(r.s, k, w, clp.posStrandBits);
 		int numMinimizers = kmers.length;
 		
 		// Get all kmer matches against any database reads
@@ -345,7 +345,7 @@ public class ReadIndex {
 			int currentVal = 1;
 			if(cur.myIndex < clp.el || cur.myIndex + clp.el + k > readLength)
 			{
-				currentVal = 50;
+				currentVal = 5;
 			}
 			maxVal[i] = currentVal;
 			backPointer[i] = -1;
@@ -384,7 +384,7 @@ public class ReadIndex {
 	void add(int index, Read cur)
 	{
 		longReadNames.add(cur.n);
-		long[] miniKmers = KmerFinder.minimizers(cur.s, k, w, clp.posStrandBits);
+		long[] miniKmers = MerMaker.minimizers(cur.s, k, w, clp.posStrandBits);
 		for(long miniKmer : miniKmers)
 		{
 			int strand = (int)(miniKmer&1);

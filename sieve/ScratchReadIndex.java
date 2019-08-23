@@ -63,7 +63,7 @@ public class ScratchReadIndex extends ReadIndex {
 		}
 		
 		// Kmerize the query read
-		long[] kmers = KmerFinder.minimizers(r.s, k, w, clp.posStrandBits);
+		long[] kmers = MerMaker.minimizers(r.s, k, w, clp.posStrandBits);
 		int numMinimizers = kmers.length;
 		
 		// Get all kmer matches against any database reads
