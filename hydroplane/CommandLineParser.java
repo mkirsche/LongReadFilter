@@ -36,7 +36,7 @@ public class CommandLineParser
 	// p is the shared kmer proportion cutoff
 	// el is how close kmer chains must get to both ends of a read to call it contained
 	// dpCutoff is the alignment score necessary in the ends of a read to call a 
-	//   read contained which didn't meet the above cutoffs
+	// read contained which didn't meet the above cutoffs
 	double p = 0.01;
 	int el = 500;
 	double dpCutoff = .5;
@@ -146,7 +146,7 @@ public class CommandLineParser
 				}
 				if(val.equalsIgnoreCase("false") || val.equalsIgnoreCase("f"))
 				{
-					localDebug = true;
+					localDebug = false;
 				}
 			}
 		}

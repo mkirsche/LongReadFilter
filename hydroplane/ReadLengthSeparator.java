@@ -1,6 +1,6 @@
 /*
  * Given a read file, sorts out the large reads for building an index
- * The length threshold is calculated such that a given proportion of reads is used in the index
+ * The length threshold is calculated such that the longest <prop> percent of reads are longer than it
  * In addition, this class allows reading the file either one read at a time or skipping large reads
  * 
  */
