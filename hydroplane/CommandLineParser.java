@@ -1,4 +1,4 @@
-package sieve;
+package hydroplane;
 
 public class CommandLineParser
 {
@@ -7,11 +7,11 @@ public class CommandLineParser
 	
 	// fn is the default input read file name
 	String fn = localDebug ? "/home/mkirsche/git/ContainedReadRemoval/sim/simulatedreads.fa"
-			: "/home/mkirsche/github/ContainedReadRemoval/sim/ERR2173373.fastq";
+			: "/home/mkirsche/reads/ERR2173373.fastq";
 	
 	// ofn is the default output read file name
 	String ofn = localDebug ? "/home/mkirsche/git/ContainedReadRemoval/sim/sievedreads.out"
-			: "/home/mkirsche/github/ContainedReadRemoval/sim/sievedarabareads.out";
+			: "/home/mkirsche/git/ContainedReadRemoval/sim/sievedarabareads.out";
 	
 	// indexSize is the proportion of reads stored be in the index
 	double indexSize = 0.02;
@@ -137,6 +137,17 @@ public class CommandLineParser
 			else if(argName.equals("puc"))
 			{
 				propUncontained = Double.parseDouble(val);
+			}
+			else if(argName.equalsIgnoreCase("localDebug"))
+			{
+				if(val.equalsIgnoreCase("true") || val.equalsIgnoreCase("t"))
+				{
+					localDebug = true;
+				}
+				if(val.equalsIgnoreCase("false") || val.equalsIgnoreCase("f"))
+				{
+					localDebug = true;
+				}
 			}
 		}
 		if(!setEl)

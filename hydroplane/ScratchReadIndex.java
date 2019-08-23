@@ -3,7 +3,7 @@
  * Useful for debugging reads which are being wrongly kept
  */
 
-package sieve;
+package hydroplane;
 
 import java.io.File;
 import java.io.FileInputStream;

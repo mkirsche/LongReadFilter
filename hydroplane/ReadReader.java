@@ -2,7 +2,7 @@
  * A class which facilitates reading genomic read data from either a FASTA or FASTQ file
  */
 
-package sieve;
+package hydroplane;
 
 import java.util.*;
 import java.io.*;

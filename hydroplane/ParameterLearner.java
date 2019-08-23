@@ -2,11 +2,14 @@
  * Uses a sample of reads to learn what thresholds will work well for a given dataset
  * Assumes that k and w are fixed, and learns other parameters from there
  */
-package sieve;
+package hydroplane;
 
 import java.util.Arrays;
 import java.util.Comparator;
 
+/*
+ * Learns parameters based on a sample of short reads
+ */
 public class ParameterLearner {
 	
 	double sharedCutoff;

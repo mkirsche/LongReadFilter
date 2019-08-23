@@ -1,4 +1,4 @@
-package sieve;
+package hydroplane;
 
 import java.io.IOException;
 import java.util.*;
@@ -332,7 +332,7 @@ public class ReadIndex {
 		return true;
 	}
 	// Gets the sequence of indices in the longest increasing subsequence
-	// Kmers near the end count as 50 matches
+	// Kmers near the end count as 5 matches
 	int[] lis(int readLength, ArrayList<Hit> sharedKmers, boolean increasing, double threshold)
 	{
 		int n = sharedKmers.size();

@@ -2,11 +2,11 @@
  * Used to perform a precise dynamic programming alignment on the ends of reads to verify containment
  * It uses a chain of kmer matches to seed the alignment and speed it up
  */
-package sieve;
+package hydroplane;
 
 import java.util.ArrayList;
 
-import sieve.ReadIndex.Hit;
+import hydroplane.ReadIndex.Hit;
 
 public class DynamicProgrammingAligner {
 	double dpContains(Read indexedRead, int k, Read r, ArrayList<Hit> sharedKmers, int[] matchChain, boolean checkMiddle)

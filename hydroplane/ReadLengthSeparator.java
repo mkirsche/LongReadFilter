@@ -1,11 +1,11 @@
 /*
  * Given a read file, sorts out the large reads for building an index
- * The length threshold used is calculated such that a given proportion of reads is used in the index
+ * The length threshold is calculated such that a given proportion of reads is used in the index
  * In addition, this class allows reading the file either one read at a time or skipping large reads
  * 
  */
 
-package sieve;
+package hydroplane;
 
 import java.io.File;
 import java.io.IOException;
